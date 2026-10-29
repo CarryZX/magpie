@@ -1,12 +1,13 @@
 // Run with Node's test runner and Playwright on the module path; see README.md.
 // A model's id copied from its chip (ARNO on Discord: 希望provider的模型右击菜单
-// 除了测试模型外，还能添加拷贝模型id的功能): in a provider's editor a model
-// chip's right-click menu has "Copy model ID" under "Test this model", which
-// puts that model's id — a prefixed one and one picked by hand alike — on the
-// clipboard through magpie (/api/copy), says so in the footer, tests nothing,
-// neither picks nor unpicks the chip and leaves the page where it is. It is
-// there where the model can't be tested too. In English and Chinese,
-// Chromium and WebKit.
+// 除了测试模型外，还能添加拷贝模型id的功能; and 秦畅: 复制模型id的时候带上id/
+// 前缀，如codex/gpt): in a provider's editor a model chip's right-click menu
+// has "Copy model ID" under "Test this model", which puts the provider's id
+// and the model's — a prefixed model id and one picked by hand alike — on
+// the clipboard through magpie (/api/copy), says so in the footer, tests
+// nothing, neither picks nor unpicks the chip and leaves the page where it
+// is. It is there where the model can't be tested too. In English and
+// Chinese, Chromium and WebKit.
 const assert = require("node:assert/strict");
 const fs = require("node:fs/promises");
 const path = require("node:path");
@@ -27,7 +28,7 @@ const relay = {
 // still be copied
 const account = {
   id: "acct", name: "Account", icon: "generic", chat: "", responses: "", anthropic: "", catalog: "", modelTest: "own-api",
-  models: [{ id: "acct/model-a", name: "Model A", on: true }], agents: [], fallback: [], headers: {},
+  models: [{ id: "model-a", name: "Model A", on: true }], agents: [], fallback: [], headers: {},
   key: { set: false }, keyList: [], balanceToken: { takes: false, set: false }, proxy: "",
 };
 
@@ -89,10 +90,19 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
       const wait = async (n) => { for (let i = 0; i < 60 && copies.length < n; i++) await page.waitForTimeout(50); };
 
       const copyOf = async (text) => {
+        // the picked-only view folds the unpicked models behind 'Show the
+        // other {n}', so open them before a hidden model can be right-clicked
+        const rest = page.locator(".editor .mchips-rest");
+        if (await rest.count()) await rest.click();
         const c = chip(text);
         await c.scrollIntoViewIfNeeded();
         await page.waitForTimeout(150);
-        const before = await c.evaluate((e) => e.getBoundingClientRect().top);
+        // measured inside the chips box: WebKit on Windows re-flows the
+        // editor once as the menu opens (its base-api pills re-wrap) and
+        // the chip and the box shift together, while the copy must not
+        // move the chip within the box, nor scroll anything
+        const rel = () => c.evaluate((e) => e.getBoundingClientRect().top - e.closest(".mchips").getBoundingClientRect().top);
+        const before = await rel();
         const scroll = await page.evaluate(() => [...document.querySelectorAll("*")].map((e) => e.scrollTop).join());
         const on = await picked();
         await c.click({ button: "right" });
@@ -105,20 +115,20 @@ for (const engine of (process.env.BROWSER ? [process.env.BROWSER] : ["chromium",
         await wait(n + 1);
         await menu.waitFor({ state: "detached" });
         assert.equal(await picked(), on, "copying doesn't pick");
-        assert.equal(await c.evaluate((e) => e.getBoundingClientRect().top), before, `${text} moved`);
+        assert.equal(await rel(), before, `${text} moved`);
         assert.equal(await page.evaluate(() => [...document.querySelectorAll("*")].map((e) => e.scrollTop).join()), scroll, "nothing scrolled");
         return copies.at(-1);
       };
 
-      // the id, not the name it is shown by
-      assert.equal(await copyOf("GLM 5.3 Flash"), "zai/glm-5.3-flash");
+      // the provider's id and the id, not the name it is shown by
+      assert.equal(await copyOf("GLM 5.3 Flash"), "relay/zai/glm-5.3-flash");
       // (the fake server has the id before the page has its answer: wait for the footer)
-      await page.waitForFunction((s) => document.querySelector("#status").textContent === s, w.said("zai/glm-5.3-flash")).catch(() => {});
-      assert.equal(await page.locator("#status").textContent(), w.said("zai/glm-5.3-flash"));
-      assert.equal(await copyOf("cline-free/mimo-v2.6-flash"), "cline-free/mimo-v2.6-flash");
-      assert.equal(await copyOf("gpt-5.1"), "gpt-5.1");
+      await page.waitForFunction((s) => document.querySelector("#status").textContent === s, w.said("relay/zai/glm-5.3-flash")).catch(() => {});
+      assert.equal(await page.locator("#status").textContent(), w.said("relay/zai/glm-5.3-flash"));
+      assert.equal(await copyOf("cline-free/mimo-v2.6-flash"), "relay/cline-free/mimo-v2.6-flash");
+      assert.equal(await copyOf("gpt-5.1"), "relay/gpt-5.1");
       // one picked by hand, which the vendor's list doesn't have
-      assert.equal(await copyOf("by-hand/model-x"), "by-hand/model-x");
+      assert.equal(await copyOf("by-hand/model-x"), "relay/by-hand/model-x");
       assert.equal(tests.length, 0, "copying tests nothing");
 
       // no left-border accent on the menu

@@ -11140,9 +11140,12 @@ function renderModels(p) {
           acts.push({ name, icon: "M5.5 3.75v8.5L12.25 8z", off: !!why, why, tip: t("Asked as {agent} asks, for a relay that serves only {agent}", { agent }), run: () => testOne(id, as) });
         }
       }
-      // its id as agents and the gateway name it, to paste where a model is
-      // typed (ARNO, Discord: 右击菜单除了测试模型外，还能添加拷贝模型id的功能)
-      acts.push({ name: "Copy model ID", icon: COPY_ICON, tip: id, run: () => copy(id, id, null, t("Model ID {model} copied", { model: id })) });
+      // the provider's id and the model's, as agents and the gateway name
+      // it, to paste where a model is typed (ARNO, Discord: 右击菜单除了
+      // 测试模型外，还能添加拷贝模型id的功能; 秦畅: 复制模型id的时候带上id/
+      // 前缀，如codex/gpt)
+      const full = p.id + "/" + id;
+      acts.push({ name: "Copy model ID", icon: COPY_ICON, tip: full, run: () => copy(full, full, null, t("Model ID {model} copied", { model: full })) });
       if (apis.length && !decidesModel(p, id)) {
         const now = apiNow(id);
         acts.push({ name: now ? t("Asked on {api}…", { api: apiLabel(now) }) : t("Asked on: Auto…"), icon: "M2.5 5h11M2.5 11h11M10.5 2.5 13.5 5l-3 2.5M5.5 8.5 2.5 11l3 2.5", tip: t("Pick the API this model is asked on"), run: () => pickAPI(c, id) });
